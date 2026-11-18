@@ -1,0 +1,16 @@
+/outputs/
+/backups/
+/library_config.json
+/library_file_ids.json
+.venv/
+__pycache__/
+*.py[cod]
+*.dat
+*.DAT
+*.npy
+*.npz
+*.csv
+*.gz
+*.svg
+*.json
+.env

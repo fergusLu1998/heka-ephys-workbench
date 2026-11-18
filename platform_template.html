@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>HEKA Ephys Recording Explorer</title>
+  <script src="plotly.min.js"></script>
+  <style>
+    :root { color-scheme: light; --bg:#f5f6f7; --panel:#fff; --text:#272727; --muted:#59636d; --line:#dce1e5; --blue:#0f4d92; --orange:#d87832; --green:#3b8f63; --purple:#8a5aa8; --red:#bb4d55; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Arial,Helvetica,sans-serif; }
+    main { max-width:1600px; margin:0 auto; padding:24px; }
+    header { display:flex; justify-content:space-between; gap:24px; align-items:flex-start; margin-bottom:18px; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:24px; font-weight:600; letter-spacing:-.02em; }
+    h2 { font-size:16px; font-weight:600; margin-bottom:8px; }
+    h3 { font-size:14px; font-weight:600; }
+    .subtitle { color:var(--muted); margin-top:4px; }
+    .links { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    main.empty-library > section {display:none;}
+    .library-tools {flex:1;max-width:860px;min-width:0;}
+    .library-row,.folder-field,.header-actions,.header-status {display:flex;align-items:center;gap:6px;}
+    .folder-field {flex:1;min-width:0;}
+    .folder-field label, .header-actions button {white-space:nowrap;}
+    #libraryFolder {min-width:0;width:100%;padding:4px 7px;}
+    .header-actions {gap:4px;}
+    .header-actions button {font-size:12px;padding:4px 8px;line-height:1.45;}
+    .header-status {justify-content:flex-end;flex-wrap:wrap;gap:0 8px;}
+    .header-status .status {min-height:0;margin:2px 0 0;font-size:11px;overflow-wrap:anywhere;}
+    .header-status .status:empty {display:none;}
+    #libraryScanDetails {margin:-6px 0 14px;padding:10px 14px;background:#fff;border:1px solid var(--line);}
+    #libraryFiles td:first-child {white-space:normal;overflow-wrap:anywhere;}
+    #recordInfo {overflow-wrap:anywhere;}
+    @media(max-width:820px){header{flex-wrap:wrap}.library-tools{max-width:none;flex-basis:100%}.header-status{justify-content:flex-start}}
+    a,button { color:var(--blue); }
+    a { text-decoration:none; border-bottom:1px solid #b8cee5; }
+    button, select, input { font:inherit; }
+    button { border:1px solid #b9c7d5; background:#fff; border-radius:6px; padding:7px 10px; cursor:pointer; }
+    button:hover { background:#eef4fa; }
+    .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:end; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:14px; }
+    .field { display:flex; flex-direction:column; gap:4px; min-width:160px; }
+    .field.wide { min-width:260px; flex:1; }
+    label { color:var(--muted); font-size:12px; }
+    select, input[type=text], input[type=number] { border:1px solid #bac7d2; background:#fff; border-radius:5px; padding:7px 8px; color:var(--text); }
+    input[type=range] { width:130px; }
+    .range-row { display:flex; gap:7px; align-items:center; }
+    .summary { display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:10px; margin-bottom:14px; }
+    .stat { background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:10px 12px; min-height:66px; }
+    .stat .label { color:var(--muted); font-size:11px; }
+    .stat .value { font-size:19px; font-weight:600; margin-top:3px; font-variant-numeric:tabular-nums; }
+    .stat .sub { color:var(--muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .grid { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1.55fr); gap:14px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:13px; min-width:0; }
+    .panel.full { grid-column:1/-1; }
+    .plot { min-height:260px; width:100%; }
+    #tracePlot { min-height:510px; }
+    .table-wrap { overflow:auto; max-height:450px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th,td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th { position:sticky; top:0; background:var(--panel); color:var(--muted); font-weight:500; }
+    tr.selectable { cursor:pointer; }
+    tr.selectable:hover, tr.selected { background:#eef4fa; }
+    .tag { display:inline-block; padding:2px 6px; border-radius:999px; background:#edf2f7; color:#415465; font-size:11px; }
+    .tag.drug { background:#f8e8e8; color:#913d44; }
+    .tag.assay { background:#ece8f8; color:#654b89; }
+    .tag.control { background:#e8f4ed; color:#2d6e4d; }
+    .note { color:var(--muted); font-size:12px; }
+    .annotation-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+    .annotation-row .field { min-width:0; }
+    .status { min-height:18px; color:var(--muted); font-size:12px; margin-top:7px; }
+    .legend { display:flex; flex-wrap:wrap; gap:10px; color:var(--muted); font-size:12px; margin:4px 0 8px; }
+    .dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:4px; }
+    .button-row { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
+    .selection-box { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr)); gap:5px; overflow:visible; padding:6px; border:1px solid var(--line); border-radius:6px; background:#fbfcfd; }
+    .sweep-chip { display:inline-flex; align-items:center; gap:3px; padding:2px 5px; border:1px solid #d7e0e8; border-radius:5px; background:#fff; font-size:11px; white-space:normal; overflow-wrap:anywhere; min-width:0; }
+    .sweep-chip input { margin:0; }
+    .source-list { display:flex; flex-direction:column; gap:6px; max-height:210px; overflow:auto; }
+    .source-row { display:flex; flex-wrap:wrap; gap:7px; align-items:center; border:1px solid var(--line); border-radius:6px; padding:6px 8px; background:#fbfcfd; font-size:12px; }
+    .source-row .source-name { flex:1; min-width:220px; }
+    .cursor-list { display:flex; flex-wrap:wrap; gap:8px; }
+    .cursor-row { display:flex; align-items:center; gap:4px; border:1px solid var(--line); border-radius:6px; padding:4px 6px; background:#fbfcfd; }
+    .cursor-row input { width:108px; padding:4px 6px; }
+    .analysis-grid { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr); gap:12px; align-items:start; }
+    .analysis-table { max-height:260px; overflow:auto; }
+    .analysis-table table { font-size:11px; }
+    .analysis-table th, .analysis-table td { padding:5px 6px; }
+    .pulse-table { max-height:250px; overflow:auto; }
+    .foot { margin-top:14px; color:var(--muted); font-size:12px; }
+    .cursor-row select {padding:4px;} .cursor-row input[type=checkbox] {width:auto;} .error {color:#a42c37;} .trace-name {font-variant-numeric:tabular-nums;} .plot .legend {display:initial;}
+    @media (max-width:1000px) { main { padding:14px; } .grid { grid-template-columns:1fr; } .summary { grid-template-columns:repeat(3,minmax(120px,1fr)); } .panel.full { grid-column:auto; } }
+    @media (max-width:560px) { header { display:block; } .links { justify-content:flex-start; margin-top:10px; } .summary { grid-template-columns:repeat(2,minmax(120px,1fr)); } .annotation-row { grid-template-columns:1fr; } }
+
+    main {max-width:1580px; padding:24px 28px 48px;}
+    header {position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:2px solid #0f4d92;padding:5px 0;gap:3px 14px;margin-bottom:10px;}
+    td.group-name {text-align:center;vertical-align:middle;border-right:1px solid var(--line);}
+    #cursorTable tbody {user-select:none;cursor:cell;}
+    #cursorTable td.copy-selected {background:#dceafb;box-shadow:inset 0 0 0 1px #b7d2ed;}
+    #pulseLegend .protocol-key {display:flex;align-items:center;gap:6px;font-size:11px;}
+    #pulseLegend .protocol-key i {flex:none;width:14px;height:2px;}
+    @media(max-width:560px){header h1{font-size:18px;margin-bottom:3px}.library-row{flex-wrap:wrap}.folder-field{flex-basis:100%}.header-actions button{padding:4px 6px}}
+    h1 {font-size:20px;} h2 {font-size:16px; letter-spacing:.01em;}
+    .panel {border-radius:4px; padding:18px; border-color:#dce1e5;}
+    .controls,.stat {border-radius:4px;}
+    .stat .value {font-size:17px; overflow-wrap:anywhere;}
+    button {border-radius:4px;} button:disabled {opacity:.5;cursor:default;}
+    button:focus-visible, input:focus-visible, select:focus-visible, [data-help]:focus-visible {outline:2px solid #3775ba;outline-offset:3px;}
+    .field {min-width:150px;} .field.wide {min-width:210px;} select {max-width:100%;}
+    .range-row input {width:80px;} .controls > * {min-width:0;}
+    .trace-toolbar {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;}
+    .trace-toolbar select {max-width:300px;min-width:0;} .toolbar-divider {width:1px;height:28px;background:var(--line);margin:0 5px;}
+    .primary {background:#0f4d92;color:#fff;border-color:#0f4d92;} .primary:hover {background:#173e6b;}
+    .selection-box {min-width:0;margin:8px 0 12px;background:#fafbfc;}
+    .sweep-chip {font-size:12px;border-radius:3px;} .sweep-chip input {accent-color:#0f4d92;}
+    .chip-swatch {display:inline-block;width:15px;height:3px;margin:0 3px;flex:none;}
+    .cursor-editor {border-top:1px solid var(--line);padding-top:12px;margin-top:10px;}
+    .cursor-row {flex-wrap:wrap;gap:8px;padding:9px;border-radius:4px;max-width:100%;border-left:3px solid var(--cursor-color);}
+    .cursor-row input {width:116px;} .cursor-row .cursor-name {width:160px;}
+    .cursor-row label {display:inline-flex;align-items:center;gap:4px;}
+    .cursor-row [hidden] {display:none!important;}
+    .recovery-settings {display:flex;flex-wrap:wrap;gap:10px;width:100%;padding-top:8px;border-top:1px solid var(--line);}
+    .recovery-settings input {width:95px;} .recovery-note {width:100%;font-size:12px;color:var(--muted);}
+    .figure-topline {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;}
+    .figure-caption {font-size:12px;color:var(--muted);margin:10px 0 0;overflow-wrap:anywhere;min-height:18px;}
+    .color-key {font-size:11px;color:var(--muted);display:inline-flex;gap:7px;align-items:center;}
+    .color-ramp {display:inline-block;width:110px;height:7px;background:linear-gradient(90deg,#afc8dc,#123f68);}
+    .figure-shell {display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:14px;margin-top:8px;}
+    .figure-shell .plot {min-width:0;}
+    .sweep-legend {overflow:visible;border-top:1px solid var(--line);padding:10px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:3px 10px;}
+    .sweep-legend button {color:var(--text);font-size:11px;text-align:left;border:0;border-radius:2px;padding:5px 4px;display:flex;gap:6px;align-items:center;flex:none;}
+    .sweep-legend button[aria-pressed=false] {opacity:.42;text-decoration:line-through;}
+    .sweep-legend .legend-label {overflow-wrap:anywhere;min-width:0;}
+    #tracePlot {min-height:510px;}
+    .help-title {cursor:help;position:relative;width:fit-content;max-width:100%;}
+    .help-title::after {content:' ⓘ';font-size:12px;color:#6c8195;font-weight:400;}
+    .module-tooltip {position:fixed;z-index:10000;max-width:min(440px,calc(100vw - 28px));padding:12px 14px;background:#263746;color:white;border-radius:5px;box-shadow:0 4px 16px #0002;font-size:12px;line-height:1.65;pointer-events:none;}
+    .module-tooltip[hidden] {display:none;}
+    .analysis-table {max-height:350px;} th {z-index:1;}
+    .trend-controls .field {flex:1 1 150px;min-width:130px;}
+    .trend-controls input {width:100%;min-width:0;}
+    .trend-axes {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));}
+    .trend-axes .field {min-width:0;}
+    .trend-axes .button-row {grid-column:1/-1;}
+    @media(max-width:1100px) {.cursor-row {width:100%;}}
+    @media(max-width:760px) {main {padding:12px;} .panel {padding:12px;} .sweep-legend {padding:8px 0;} .trace-toolbar select {max-width:100%;} .toolbar-divider {display:none;} .controls .field {width:100%;} .cursor-row label {flex-wrap:wrap;}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 data-help="按 File → Group → Series → Trace → Sweep 保留记录结构。自动阶段只依据 protocol、label 和时间顺序；未记录的药物与浓度需要人工注释。">HEKA 电生理记录浏览与分析</h1>
+
+    </div>
+    <div class="library-tools">
+      <div class="library-row">
+        <div class="folder-field"><label for="libraryFolder">数据文件夹</label><input id="libraryFolder" type="text" placeholder="输入 DAT 所在文件夹的完整路径"></div>
+        <div class="header-actions"><button id="scanLibrary">扫描 DAT</button><button id="updateLibrary">更新文件列表</button><button id="exportWorkspace">导出工程</button><button id="importWorkspace">导入工程</button></div>
+        <input id="workspaceFile" type="file" accept="application/json,.json" hidden>
+      </div>
+      <div class="header-status"><span id="libraryStatus" class="status" aria-live="polite"></span><span id="projectStatus" class="status" aria-live="polite"></span></div>
+    </div>
+  </header>
+  <details id="libraryScanDetails" hidden><summary id="libraryScanSummary">DAT 扫描结果</summary><div class="table-wrap"><table id="libraryFiles"><thead><tr><th>文件 / 相对路径</th><th>大小</th><th>状态</th></tr></thead><tbody></tbody></table></div></details>
+
+  <div class="panel" id="emptyLibrary" hidden>尚未载入记录。输入 HEKA DAT 所在文件夹，点击“更新文件列表”开始预览与分析。</div>
+  <section class="controls" aria-label="记录选择和分析控制">
+    <div class="field wide"><label for="fileSelect">原始文件</label><select id="fileSelect"></select></div>
+    <div class="field wide"><label for="groupSelect">Group / 一次完整记录</label><select id="groupSelect"></select></div>
+    <div class="field wide"><label for="seriesSelect">Series / 记录阶段</label><select id="seriesSelect"></select></div>
+    <div class="field"><label for="traceSelect">Trace label</label><select id="traceSelect"></select></div>
+    <div class="field"><label for="displayMode">显示方式</label><select id="displayMode"><option value="raw">原始电流</option><option value="baseline" selected>减去 baseline</option><option value="normalized">按 pulse change 归一化</option></select></div>
+    <div class="field"><label>当前 Series / Trace 的 sweep 范围</label><div class="range-row"><input aria-label="Sweep 起点" id="sweepStart" type="number" min="1" value="1"><span>至</span><input aria-label="Sweep 终点" id="sweepEnd" type="number" min="1" value="1"></div></div>
+    <div class="field wide"><label for="quickSweepInput">快捷显示（当前 Group 的 Series 编号和 Sweep）</label><input id="quickSweepInput" type="text" placeholder="S01W2,S06W10；多通道可加 T2"></div>
+    <div class="button-row"><button id="applyQuickSweep">显示快捷选择</button></div>
+  </section>
+
+  <section class="summary" aria-live="polite">
+    <div class="stat"><div class="label">文件</div><div class="value" id="statFile">—</div><div class="sub" id="statPath">—</div></div>
+    <div class="stat"><div class="label">Group</div><div class="value" id="statGroup">—</div><div class="sub" id="statGroupLabel">—</div></div>
+    <div class="stat"><div class="label">阶段</div><div class="value" id="statStage">—</div><div class="sub" id="statProtocol">—</div></div>
+    <div class="stat"><div class="label">显示 / 候选 sweep</div><div class="value" id="statCount">—</div><div class="sub" id="statTrace">—</div></div>
+    <div class="stat"><div class="label">Median steady</div><div class="value" id="statSteady">—</div><div class="sub">pA，显示 sweep 的指标中位数</div></div>
+    <div class="stat"><div class="label">Clip</div><div class="value" id="statClip">—</div><div class="sub">HEKA clip metadata</div></div>
+  </section>
+
+  <section class="grid">
+    <div class="panel full" id="seriesPanel">
+      <h2 data-help="保留记录顺序、Protocol、Label、原始事件与人工注释。点击一行切换参考 Series，保留当前 Group 的曲线选择。">当前 Group 的 Series 表</h2>
+      <div class="table-wrap"><table id="seriesTable"><thead><tr><th>Series</th><th>自动阶段</th><th>Protocol</th><th>Label</th><th>相对时间 (min)</th><th>Sweep</th><th>Trace</th><th>Clip</th><th>Median steady</th><th>原始 sweep 标记</th><th>用户注释</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="panel full" id="cursorTrendPanel">
+      <h2 data-help="每点是一个 sweep 的一个 cursor 统计值。时间来自 HEKA Sweep.Time；默认以 Group 首个 sweep 为零点，保留真实 sweep 间隔和跨 Series 的停顿，不用采样长度拼接时间。记录钟表时间按 DAT 原样显示，文件未提供时区。背景色标记各 Series 的记录范围。选择 Series 可放大预览，选择“全部 Series”返回。不同 cursor 用颜色区分；不同 protocol / 通道分别成曲线，Series 之间不连线。无有效采样点显示为空，不补零。恢复时间固定用 ms；与电流混合时自动分面，各轴标明单位。Y 轴电流变换不会改变恢复时间。">Cursor Online Analysis · 趋势</h2>
+      <div class="controls trend-controls">
+        <div class="field"><label for="trendScope">趋势数据范围</label><select id="trendScope"><option value="group">当前 Group 全部 sweep</option><option value="selected">仅选中显示的 sweep</option></select></div>
+        <div class="field"><label for="trendFocus">放大预览 Series</label><select id="trendFocus"><option value="">全部 Series</option></select></div>
+        <div class="field"><label for="trendX">X 轴</label><select id="trendX"><option value="elapsed_min">记录经过时间 (min)</option><option value="elapsed_s">记录经过时间 (s)</option><option value="recorded">记录钟表时间</option><option value="order">Group sweep 顺序</option></select></div>
+        <div class="field"><label for="trendY">Y 轴</label><select id="trendY"><option value="raw">电流 (pA)</option><option value="nA">电流 (nA)</option><option value="baseline">减去 baseline (pA)</option><option value="display">当前显示变换</option></select></div>
+        <div class="field"><label for="trendLayout">多 cursor 显示</label><select id="trendLayout"><option value="overlay">叠加显示</option><option value="facets">按 cursor 分面</option></select></div>
+      </div>
+      <div class="controls trend-controls trend-axes">
+        <div class="field"><label for="trendXTitle">X 轴标题</label><input id="trendXTitle" type="text" placeholder="自动" maxlength="100"></div>
+        <div class="field"><label for="trendXMin">X 下限</label><input id="trendXMin" type="text" placeholder="自动"></div>
+        <div class="field"><label for="trendXMax">X 上限</label><input id="trendXMax" type="text" placeholder="自动"></div>
+        <div class="field"><label for="trendYTitle">Y 轴标题</label><input id="trendYTitle" type="text" placeholder="自动" maxlength="100"></div>
+        <div class="field"><label for="trendYMin">Y 下限</label><input id="trendYMin" type="number" step="any" placeholder="自动"></div>
+        <div class="field"><label for="trendYMax">Y 上限</label><input id="trendYMax" type="number" step="any" placeholder="自动"></div>
+        <div class="button-row"><button id="applyTrendAxes">应用坐标设置</button><button id="resetTrendAxes">恢复自动坐标</button></div>
+      </div>
+      <div class="button-row"><button id="showTrendCurves">显示全部曲线</button><button id="exportTrendCsv">导出趋势 CSV</button><button id="exportTrendSvg">导出趋势 SVG</button></div>
+      <div id="trendStatus" class="status" aria-live="polite"></div><div id="trendAxesStatus" class="status" aria-live="polite"></div>
+      <div id="cursorTrendPlot" class="plot" role="img" aria-label="Cursor 统计值随真实记录时间变化"></div>
+      <div id="trendLegend" class="sweep-legend" aria-label="Cursor 趋势图例"></div>
+    </div>
+
+    <div class="panel full" id="tracePanel">
+      <h2 id="selectionHeading" data-help="SVG 导出包含完整矢量路径、Protocol 和时间/电流/电压比例尺，不含坐标轴；CSV 包含全量采样。只导出显示的 sweep。默认显示当前 Group 所有 Series、所有通道的 sweep，按 Series → sweep → 通道排序，颜色由浅到深。单击图例隐藏 / 恢复，双击图例独显 / 恢复全部；双击本标题切换全选 / 全不选。可拖动 cursor 边界。显示采用保极值降采样，统计和 CSV 使用完整采样点。">选中 Trace</h2>
+      <div class="controls" style="padding:8px">
+        <div class="field wide"><label for="analysisTraceSelect">跨 Series trace（当前 Group）</label><select id="analysisTraceSelect"></select></div>
+        <div class="field"><label for="analysisSweepSelect">Sweep</label><select id="analysisSweepSelect"></select></div>
+        <button id="addAnalysisSource">加入显示</button><button id="addSelectedSources">加入该通道全部 sweep</button>
+      </div>
+      <div class="trace-toolbar">
+        <button id="selectAllSweeps">全选 sweep</button><button id="selectNoSweeps">全不选 sweep</button>
+        <span class="toolbar-divider"></span>
+        <label for="exportTarget">导出对象</label><select id="exportTarget"></select>
+        <label for="exportMode">格式</label><select id="exportMode"><option value="svg">SVG 矢量图（无坐标轴）</option><option value="csv">CSV 完整采样</option></select>
+        <button id="exportSelection" class="primary">导出选中 Trace</button>
+      </div>
+      <div id="exportStatus" class="status" aria-live="polite"></div>
+      <div id="sweepSelection" class="selection-box" aria-label="当前 Group 的 sweep 选择"></div>
+      <div class="cursor-editor">
+        <h3 id="cursorHeading" data-help="名称可编辑，编号保持不变。类型可选时间窗、单点或负峰恢复时间：在窗口内找最负峰，计算其后首次进入 baseline 容差带并保持指定时长的时间，结果为 ms，不是拟合 tau。默认容差为负峰相对 baseline 幅度的 5%，持续 1 ms；可指定基线窗或手动原始 pA。缺少连续数据或未恢复时留空。Cursor 和选中 trace 按原文件及 Group 自动存于本浏览器；可导出设置备份。">Cursor 编辑</h3>
+        <div class="button-row" style="margin:8px 0"><button id="addCursor">增加 cursor</button><button id="clearCursors">移除全部 cursor</button><button id="exportCursors">导出 cursor</button><button id="importCursors">导入 cursor</button><input id="cursorFile" type="file" accept="application/json,.json" hidden></div>
+        <div id="cursorSettingsStatus" class="status" aria-live="polite">Cursor 设置在所有 DAT 和 Group 中共用，并保存在当前浏览器。</div>
+        <div id="cursorList" class="cursor-list"></div>
+      </div>
+      <div class="figure-topline"><span class="status" id="sweepSelectionStatus" aria-live="polite"></span><span class="color-key">较早 <i class="color-ramp"></i> 较晚</span></div>
+      <div class="figure-shell"><div id="tracePlot" class="plot" role="img" aria-label="选中 sweep 波形与 cursor"></div><div id="traceLegend" class="sweep-legend" aria-label="Trace 图例"></div></div>
+    </div>
+
+    <div class="panel full" id="onlinePanel">
+      <h2 data-help="每个 cursor 独立命名并选择 min、max、mean，或负峰恢复时间。时间窗使用 [起点, 终点)，按完整采样点统计；无存储数据时显示空值。恢复时间始终用原始 pA 判定，以 ms 输出，并保留 baseline、负峰时刻、恢复时刻及持续时间确认点；未恢复不补零、不外推。单点取对应存储段内最近采样点。CSV 同时保留名称、稳定编号和测量条件。">Trace Online Analysis</h2>
+      <div class="button-row" style="margin:10px 0"><label for="analysisBasis">数值基准</label><select id="analysisBasis"><option value="raw">原始电流 (pA)</option><option value="display">当前显示变换</option></select><button id="exportCursorCsv">导出 cursor 统计 CSV</button></div>
+      <div id="analysisStatus" class="status" aria-live="polite"></div>
+      <div class="button-row" style="margin:6px 0"><label for="copyStatsColumn">复制列</label><select id="copyStatsColumn"></select><button id="copyStats" disabled>复制所选列</button><span id="copyStatsStatus" class="status" aria-live="polite"></span></div>
+      <div class="analysis-table"><table id="cursorTable" tabindex="0" aria-label="Cursor 统计表，可拖选矩形区域后复制"><thead><tr><th>Trace / Sweep</th><th>Cursor</th><th>时间 (s)</th><th>n</th><th>统计量</th><th>数值</th><th>单位 / 状态</th><th>恢复测量详情</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="panel full">
+      <h2 data-help="按 Series 展示所选 sweep 的刺激方案。相同方案只显示一次，保留各 sweep 实际不同的电压或时序，以及 Store/NoStore。CSV / JSON 为可编辑方案表。Leak 通道显示关联刺激。">Pulse Generator 方案预览与导出</h2>
+      <div id="pulseSummary" class="status"></div>
+      <div class="figure-shell"><div id="pulsePlot" class="plot" role="img" aria-label="Pulse Generator 电压方案预览"></div><div id="pulseLegend" class="sweep-legend" aria-label="Protocol 图例"></div></div>
+      <div class="pulse-table"><table id="pulseTable"><thead><tr><th>Protocol / Series</th><th>Segment</th><th>Start (s)</th><th>End (s)</th><th>Voltage (mV)</th><th>Stored</th><th>Samples</th><th>ΔV (mV)</th></tr></thead><tbody></tbody></table></div>
+      <div class="button-row" style="margin-top:8px"><button id="exportPulseCsv">导出 Pulse Generator CSV</button><button id="exportPulseJson">导出 Pulse Generator JSON</button><button id="exportPulseSvg">导出 Protocol SVG</button></div>
+    </div>
+
+    <div class="panel">
+      <h2 data-help="用于补充 DAT 元数据里没有记录的给药阶段、浓度、washout 或方法信息。注释保存在当前浏览器中。">当前 Series 注释</h2>
+      <div class="annotation-row">
+        <div class="field"><label for="stageNote">人工阶段</label><input id="stageNote" type="text" placeholder="例如：给药后 5 min"></div>
+        <div class="field"><label for="doseNote">药物 / 方法</label><input id="doseNote" type="text" placeholder="例如：XE991 10 μM"></div>
+      </div>
+      <div class="annotation-row"><div class="field"><label for="commentNote">备注</label><input id="commentNote" type="text" placeholder="例如：细胞状态下降"></div><div><button id="saveAnnotation">保存当前注释</button><button id="downloadAnnotations">导出注释</button></div></div>
+      <div class="status" id="annotationStatus"></div>
+    </div>
+
+    <div class="panel">
+      <h2 data-help="顶部选择的参考 Series / Trace 的原始文件、记录模式、时间和标签。">当前记录信息</h2>
+      <div id="recordInfo" class="note"></div>
+    </div>
+  </section>
+</main>
+<div id="moduleTooltip" class="module-tooltip" role="tooltip" hidden></div>
+
+<script>const DATA = __PLATFORM_DATA__;</script>
+<script src="ephys_math.js"></script>
+<script src="ephys_session.js"></script>
+<script src="ephys_app.js"></script>
+<script src="ephys_library_ui.js"></script>
+</body></html>
